@@ -1,6 +1,8 @@
-# 🇮🇪 Ireland Cost of Living Visualization
+# Ireland Cost of Living Visualization
 
 An interactive information visualization exploring how the cost of living in Ireland has changed since 2015, examining price trends across categories, economic periods, and demographic impact.
+
+**Interactive Dashboard:** [https://sinham101-ireland-cost-of-living-vis-app-hkhoa0.streamlit.app/](https://sinham101-ireland-cost-of-living-vis-app-hkhoa0.streamlit.app/)
 
 **Course:** CS7DS4 Information Visualization  
 **Author:** Monish  
