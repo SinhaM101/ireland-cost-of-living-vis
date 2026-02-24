@@ -5,8 +5,8 @@ An interactive Streamlit dashboard exploring how the cost of living has changed
 in Ireland since 2015, addressing four key research questions:
 1. Which price categories have increased the most?
 2. How do these increases differ over time?
-3. Are regions with lower household income experiencing higher pressure?
-4. Are price increases concentrated in essential goods?
+3. How have price changes evolved across major economic periods?
+4. Which demographic groups face the greatest cost-of-living burden?
 
 Data Sources: CSO Ireland (HICP, Household Income, Personal Consumption)
 """
@@ -153,13 +153,41 @@ CATEGORY_SHORT_NAMES = {
 }
 
 # =============================================================================
+# CONSISTENT COLOR SCHEME FOR CATEGORIES
+# =============================================================================
+# Define a fixed color for each category to ensure consistency across all visualizations
+# Base palette: #BDD9BF, #929084, #FFC857, #A997DF, #E5323B, #2E4052
+# Extended with variations to ensure each category has a unique color
+CATEGORY_COLORS = {
+    "All Items": "#929084",
+    "Food & Beverages": "#E5323B",
+    "Alcohol & Tobacco": "#A997DF",
+    "Clothing & Footwear": "#BDD9BF",
+    "Housing & Utilities": "#2E4052",
+    "Furnishings": "#8B7355",
+    "Health": "#FFC857",
+    "Transport": "#5B8A72",
+    "Communications": "#D4A5A5",
+    "Recreation & Culture": "#7B68EE",
+    "Education": "#FF8C42",
+    "Restaurants & Hotels": "#6B5B95",
+    "Miscellaneous": "#88B04B"
+}
+
+# Create Altair scale for consistent category colors
+CATEGORY_COLOR_SCALE = alt.Scale(
+    domain=list(CATEGORY_COLORS.keys()),
+    range=list(CATEGORY_COLORS.values())
+)
+
+# =============================================================================
 # DASHBOARD HEADER
 # =============================================================================
-st.title("🇮🇪 Ireland Cost of Living Analysis (2015-2024)")
+st.title("Ireland Cost of Living Analysis (2015-2024)")
 st.markdown("""
 This interactive dashboard explores how the cost of living has changed in Ireland since 2015, 
-examining which price categories have increased the most, how changes differ over time, 
-regional income disparities, and whether essential goods face higher price pressure.
+examining which price categories have increased the most, how changes evolved across economic periods 
+(pre-COVID, COVID, inflation surge, stabilization), and which demographic groups face the greatest burden.
 """)
 
 # =============================================================================
@@ -179,11 +207,24 @@ with st.sidebar:
     )
     
     # Category multi-select: allows users to focus on specific categories
-    selected_categories = st.multiselect(
-        "Select Categories to Compare",
-        options=list(CATEGORY_SHORT_NAMES.values()),
-        default=["Food & Beverages", "Housing & Utilities", "Transport", "Education", "Health"]
-    )
+    st.subheader("Select Categories to Compare")
+    
+    # Create checkboxes with color indicators for each category
+    selected_categories = []
+    all_categories = [c for c in CATEGORY_SHORT_NAMES.values() if c != "All Items"]
+    
+    # Default selections - all categories selected by default
+    default_selected = all_categories
+    
+    for cat in all_categories:
+        color = CATEGORY_COLORS.get(cat, "#666666")
+        # Create a colored box indicator next to each checkbox
+        col1, col2 = st.columns([0.15, 0.85])
+        with col1:
+            st.markdown(f'<div style="background-color:{color}; width:20px; height:20px; border-radius:3px; margin-top:5px;"></div>', unsafe_allow_html=True)
+        with col2:
+            if st.checkbox(cat, value=(cat in default_selected), key=f"cat_{cat}"):
+                selected_categories.append(cat)
     
     # Convert short names back to full COICOP names for data filtering
     reverse_short_names = {v: k for k, v in CATEGORY_SHORT_NAMES.items()}
@@ -233,24 +274,27 @@ if not hicp_index.empty:
     change_df = pd.DataFrame(change_data)
     change_df = change_df.sort_values('Change', ascending=False)  # Sort by highest change
     
+    # Filter to only show selected categories from sidebar
+    if selected_categories:
+        filtered_change_df = change_df[change_df['Category'].isin(selected_categories)]
+    else:
+        filtered_change_df = change_df
+    
     # Create two-column layout: chart on left, metrics on right
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Horizontal bar chart with conditional coloring
-        # Red = essential categories, Blue = non-essential
-        bar_chart = alt.Chart(change_df).mark_bar().encode(
+        # Horizontal bar chart with consistent category colors
+        bar_chart = alt.Chart(filtered_change_df).mark_bar().encode(
             x=alt.X('Change:Q', 
                     title=f'Price Change (%) from {year_range[0]} to {year_range[1]}',
                     axis=alt.Axis(format='.1f')),
             y=alt.Y('Category:N', 
                     sort='-x',  # Sort by x-value (highest change at top)
                     title=''),
-            color=alt.condition(
-                alt.datum.IsEssential,
-                alt.value('#e45756'),  # Red for essential
-                alt.value('#4c78a8')   # Blue for non-essential
-            ),
+            color=alt.Color('Category:N',
+                           scale=CATEGORY_COLOR_SCALE,
+                           legend=None),
             tooltip=[
                 alt.Tooltip('Category:N', title='Category'),
                 alt.Tooltip('Change:Q', title='Change (%)', format='.1f'),
@@ -259,12 +303,11 @@ if not hicp_index.empty:
             ]
         ).properties(
             width=500,
-            height=400,
+            height=max(200, len(filtered_change_df) * 35),
             title=f'Price Index Change by Category ({year_range[0]}-{year_range[1]})'
         )
         
         st.altair_chart(bar_chart, use_container_width=True)
-        st.caption("🔴 Essential categories | 🔵 Non-essential categories")
     
     with col2:
         # Display top 3 categories as metric cards
@@ -304,377 +347,390 @@ if not monthly_hicp.empty and selected_full_categories:
     # This implements focus+context technique to reduce visual clutter
     highlight = alt.selection_point(on='pointerover', fields=['ShortCategory'], nearest=True)
     
-    # Base encoding shared by lines and points
+    # Base encoding shared by lines and points - using consistent color scheme
     base = alt.Chart(filtered_monthly).encode(
         x=alt.X('Date:T', title='Date', axis=alt.Axis(format='%Y')),
         y=alt.Y('Value:Q', title='Price Index (Base 2015=100)'),
         color=alt.Color('ShortCategory:N', 
                        title='Category',
+                       scale=CATEGORY_COLOR_SCALE,
                        legend=alt.Legend(orient='bottom', columns=3))
     )
     
     # Line marks with opacity tied to hover state
     lines = base.mark_line(strokeWidth=2).encode(
-        opacity=alt.condition(highlight, alt.value(1), alt.value(0.3))
-    ).add_params(highlight)
-    
-    # Circle marks appear on hover for precise value reading
-    points = base.mark_circle(size=60).encode(
-        opacity=alt.condition(highlight, alt.value(1), alt.value(0)),
+        opacity=alt.condition(highlight, alt.value(1), alt.value(0.3)),
         tooltip=[
             alt.Tooltip('ShortCategory:N', title='Category'),
             alt.Tooltip('Date:T', title='Date', format='%B %Y'),
             alt.Tooltip('Value:Q', title='Index Value', format='.1f')
         ]
-    )
+    ).add_params(highlight)
     
-    # Combine lines and points into layered chart
-    line_chart = (lines + points).properties(
+    # Line chart without dots - increased height for better readability
+    line_chart = lines.properties(
         width=800,
-        height=400,
+        height=600,
         title='Monthly Price Index Trends by Category'
     ).interactive()  # Enable pan/zoom
     
     st.altair_chart(line_chart, use_container_width=True)
-    
-    # --- Year-over-Year Heatmap ---
-    # Shows inflation intensity across categories and years simultaneously
-    st.subheader("Year-over-Year Change Heatmap")
-    
-    # Calculate YoY change: compare each month to same month previous year
-    yoy_data = []
-    for cat in selected_full_categories:
-        cat_data = monthly_hicp[monthly_hicp['Category'] == cat].copy()
-        cat_data = cat_data.sort_values('Date')
-        # pct_change with periods=12 compares to 12 months ago (same month last year)
-        cat_data['YoY_Change'] = cat_data['Value'].pct_change(periods=12) * 100
-        for _, row in cat_data.iterrows():
-            if pd.notna(row['YoY_Change']) and pd.notna(row['Year']):
-                yoy_data.append({
-                    'Category': CATEGORY_SHORT_NAMES[cat],
-                    'Year': int(row['Year']),
-                    'Month': row['MonthNum'],
-                    'YoY_Change': row['YoY_Change']
-                })
-    
-    if yoy_data:
-        yoy_df = pd.DataFrame(yoy_data)
-        # Average YoY change per year (across all months in that year)
-        yoy_annual = yoy_df.groupby(['Category', 'Year'])['YoY_Change'].mean().reset_index()
-        
-        # Heatmap: color saturation encodes inflation rate
-        # Diverging color scale: blue (deflation) to red (high inflation)
-        heatmap = alt.Chart(yoy_annual).mark_rect().encode(
-            x=alt.X('Year:O', title='Year'),
-            y=alt.Y('Category:N', title=''),
-            color=alt.Color('YoY_Change:Q', 
-                           title='Avg YoY Change (%)',
-                           scale=alt.Scale(scheme='redblue', reverse=True, domain=[-5, 15])),
-            tooltip=[
-                alt.Tooltip('Category:N', title='Category'),
-                alt.Tooltip('Year:O', title='Year'),
-                alt.Tooltip('YoY_Change:Q', title='Avg YoY Change (%)', format='.1f')
-            ]
-        ).properties(
-            width=600,
-            height=300,
-            title='Average Year-over-Year Price Change by Category and Year'
-        )
-        
-        st.altair_chart(heatmap, use_container_width=True)
 
 st.divider()
 
 # =============================================================================
-# SECTION 3: REGIONAL INCOME ANALYSIS
+# SECTION 3: ECONOMIC PERIODS ANALYSIS
 # =============================================================================
-# Answers Q3: Are regions with lower household income experiencing higher pressure?
-# Encoding: Line chart for income trends, grouped bars for income vs CPI comparison
-st.header("3. Regional Income Disparities and Cost Pressure")
+# Answers Q3: How have price changes evolved across major economic periods?
+# Economic periods: Pre-COVID (2015-2019), COVID (2020-2021), Inflation Surge (2022-2023), Stabilization (2024)
+st.header("3. Price Changes Across Economic Periods")
 
-# Filter employee compensation data by region (excluding Ireland total)
-# NUTS 2 regions: Northern & Western, Southern, Eastern & Midland
-income_data = household_income[
-    (household_income['Statistic'].str.contains('Compensation of Employees', na=False)) &
-    (household_income['Year'] >= year_range[0]) &
-    (household_income['Year'] <= year_range[1]) &
-    (household_income['Region'] != 'Ireland')  # Exclude national total
-].copy()
+# Define economic periods (removed Stabilization 2024 - no data available)
+ECONOMIC_PERIODS = {
+    'Pre-COVID (2015-2019)': (2015, 2019),
+    'COVID (2020-2021)': (2020, 2021),
+    'Inflation Surge (2022-2023)': (2022, 2023)
+}
 
-# Filter disposable income index data (State=100 baseline)
-disposable_income = household_income[
-    (household_income['Statistic'].str.contains('Disposable Income per Person', na=False)) &
-    (household_income['Year'] >= year_range[0]) &
-    (household_income['Year'] <= year_range[1]) &
-    (household_income['Region'] != 'Ireland')
-].copy()
+st.markdown("""
+Analyzing how price changes evolved across three distinct economic periods:
+- **Pre-COVID (2015-2019):** Stable growth period
+- **COVID (2020-2021):** Pandemic disruptions, supply chain issues
+- **Inflation Surge (2022-2023):** Energy crisis, post-pandemic inflation
+""")
 
-# Two-column layout for regional charts
-col1, col2 = st.columns(2)
+# Calculate average annual price change for each period and category
+period_data = []
+for period_name, (start_year, end_year) in ECONOMIC_PERIODS.items():
+    period_cpi = annual_cpi[
+        (annual_cpi['Statistic'] == 'Harmonised Index of Consumer Prices') &
+        (annual_cpi['Category'].isin(MAIN_CATEGORIES)) &
+        (annual_cpi['Year'] >= start_year) &
+        (annual_cpi['Year'] <= end_year)
+    ].copy()
+    
+    if not period_cpi.empty:
+        for cat in MAIN_CATEGORIES:
+            if cat == "All-items HICP (COICOP 00)":
+                continue
+            cat_data = period_cpi[period_cpi['Category'] == cat]
+            if len(cat_data) >= 1:
+                start_val = cat_data[cat_data['Year'] == start_year]['Value'].values
+                end_val = cat_data[cat_data['Year'] == end_year]['Value'].values
+                if len(start_val) > 0 and len(end_val) > 0 and start_val[0] > 0:
+                    # Calculate total change over period
+                    total_change = ((end_val[0] - start_val[0]) / start_val[0]) * 100
+                    # Annualized change
+                    years = end_year - start_year + 1
+                    annual_change = total_change / years if years > 0 else total_change
+                    period_data.append({
+                        'Period': period_name,
+                        'Category': CATEGORY_SHORT_NAMES[cat],
+                        'TotalChange': total_change,
+                        'AnnualChange': annual_change,
+                        'IsEssential': cat in ESSENTIAL_CATEGORIES
+                    })
 
-with col1:
-    if not income_data.empty:
-        # Line chart showing employee compensation trends by region
-        income_chart = alt.Chart(income_data).mark_line(point=True, strokeWidth=2).encode(
-            x=alt.X('Year:O', title='Year'),
-            y=alt.Y('Value:Q', title='Compensation (€ Million)'),
-            color=alt.Color('Region:N', 
-                           title='Region',
-                           scale=alt.Scale(scheme='category10')),
-            tooltip=[
-                alt.Tooltip('Region:N', title='Region'),
-                alt.Tooltip('Year:O', title='Year'),
-                alt.Tooltip('Value:Q', title='€ Million', format=',.0f')
-            ]
-        ).properties(
-            width=400,
-            height=350,
-            title='Regional Employee Compensation Over Time'
-        ).interactive()
-        
-        st.altair_chart(income_chart, use_container_width=True)
-
-with col2:
-    if not disposable_income.empty:
-        # Grouped bar chart showing disposable income index by region
-        # Values relative to State=100 (national average)
-        disp_chart = alt.Chart(disposable_income).mark_bar().encode(
-            x=alt.X('Year:O', title='Year'),
-            y=alt.Y('Value:Q', title='Index (State=100)'),
-            color=alt.Color('Region:N', title='Region'),
-            xOffset='Region:N',  # Group bars by region within each year
-            tooltip=[
-                alt.Tooltip('Region:N', title='Region'),
-                alt.Tooltip('Year:O', title='Year'),
-                alt.Tooltip('Value:Q', title='Index', format='.1f')
-            ]
-        ).properties(
-            width=400,
-            height=350,
-            title='Disposable Income Index by Region (State=100)'
+if period_data:
+    period_df = pd.DataFrame(period_data)
+    
+    # Period selector - dropdown to filter by economic period
+    col1, col2 = st.columns([3, 1])
+    
+    with col2:
+        # Dropdown to select economic period
+        period_options = ['All Periods', 'Pre-COVID (2015-2019)', 'COVID (2020-2021)', 
+                         'Inflation Surge (2022-2023)']
+        selected_period = st.selectbox(
+            "Select Economic Period",
+            options=period_options,
+            index=0
         )
+    
+    with col1:
+        # Filter to selected categories if any
+        if selected_categories:
+            filtered_period_df = period_df[period_df['Category'].isin(selected_categories)]
+        else:
+            filtered_period_df = period_df
         
-        st.altair_chart(disp_chart, use_container_width=True)
-
-# Get overall CPI for comparison with income growth
-all_items_cpi = annual_cpi[
-    (annual_cpi['Statistic'] == 'Harmonised Index of Consumer Prices') &
-    (annual_cpi['Category'] == 'All-items HICP (COICOP 00)') &
-    (annual_cpi['Year'] >= year_range[0]) &
-    (annual_cpi['Year'] <= year_range[1])
-].copy()
-
-# --- Income Growth vs CPI Growth Comparison ---
-# Key insight: Real income change = Income Growth - CPI Growth
-# Positive = purchasing power increased, Negative = purchasing power decreased
-if not income_data.empty and not all_items_cpi.empty:
-    st.subheader("Income Growth vs Price Inflation by Region")
-    
-    # Calculate income growth for each region
-    regional_growth = []
-    for region in income_data['Region'].unique():
-        region_data = income_data[income_data['Region'] == region].sort_values('Year')
-        if len(region_data) >= 2:
-            start_val = region_data[region_data['Year'] == year_range[0]]['Value'].values
-            end_val = region_data[region_data['Year'] == year_range[1]]['Value'].values
-            if len(start_val) > 0 and len(end_val) > 0 and start_val[0] > 0:
-                income_growth = ((end_val[0] - start_val[0]) / start_val[0]) * 100
-                regional_growth.append({
-                    'Region': region,
-                    'Income Growth (%)': income_growth
-                })
-    
-    # Calculate CPI growth (same for all regions - national figure)
-    cpi_start = all_items_cpi[all_items_cpi['Year'] == year_range[0]]['Value'].values
-    cpi_end = all_items_cpi[all_items_cpi['Year'] == year_range[1]]['Value'].values
-    
-    if len(cpi_start) > 0 and len(cpi_end) > 0 and cpi_start[0] > 0:
-        cpi_growth = ((cpi_end[0] - cpi_start[0]) / cpi_start[0]) * 100
+        # Filter by selected period if not "All Periods"
+        if selected_period != 'All Periods':
+            filtered_period_df = filtered_period_df[filtered_period_df['Period'] == selected_period]
         
-        if regional_growth:
-            growth_df = pd.DataFrame(regional_growth)
-            growth_df['CPI Growth (%)'] = cpi_growth
-            # Real income change: how much purchasing power changed
-            growth_df['Real Income Change (%)'] = growth_df['Income Growth (%)'] - growth_df['CPI Growth (%)']
-            
-            # Reshape data for grouped bar chart
-            growth_melted = growth_df.melt(
-                id_vars=['Region'],
-                value_vars=['Income Growth (%)', 'CPI Growth (%)'],
-                var_name='Metric',
-                value_name='Growth'
-            )
-            
-            # Grouped bar chart comparing income growth vs CPI growth
-            comparison_chart = alt.Chart(growth_melted).mark_bar().encode(
-                x=alt.X('Region:N', title=''),
-                y=alt.Y('Growth:Q', title='Growth (%)'),
-                color=alt.Color('Metric:N', 
-                               title='',
-                               scale=alt.Scale(range=['#4c78a8', '#e45756'])),
-                xOffset='Metric:N',
+        if selected_period == 'All Periods':
+            # Show horizontal grouped bar chart - categories as rows, periods as grouped bars
+            # Using consistent category colors
+            period_chart = alt.Chart(filtered_period_df).mark_bar().encode(
+                x=alt.X('AnnualChange:Q', title='Avg Annual Price Change (%)'),
+                y=alt.Y('Category:N', title=''),
+                color=alt.Color('Category:N', 
+                               title='Category',
+                               scale=CATEGORY_COLOR_SCALE,
+                               legend=alt.Legend(orient='bottom', columns=4)),
+                yOffset=alt.YOffset('Period:N', sort=['Pre-COVID (2015-2019)', 'COVID (2020-2021)', 'Inflation Surge (2022-2023)']),
                 tooltip=[
-                    alt.Tooltip('Region:N', title='Region'),
-                    alt.Tooltip('Metric:N', title='Metric'),
-                    alt.Tooltip('Growth:Q', title='Growth (%)', format='.1f')
+                    alt.Tooltip('Category:N', title='Category'),
+                    alt.Tooltip('Period:N', title='Period'),
+                    alt.Tooltip('AnnualChange:Q', title='Avg Annual Change (%)', format='.1f'),
+                    alt.Tooltip('TotalChange:Q', title='Total Change (%)', format='.1f')
                 ]
             ).properties(
-                width=600,
-                height=300,
-                title=f'Income Growth vs CPI Growth ({year_range[0]}-{year_range[1]})'
+                width=700,
+                height=450,
+                title='Average Annual Price Change by Category Across Economic Periods'
             )
-            
-            st.altair_chart(comparison_chart, use_container_width=True)
-            
-            # Display real income change as metric cards
-            st.markdown("**Real Income Change (Income Growth - CPI Growth):**")
-            cols = st.columns(len(growth_df))
-            for i, (_, row) in enumerate(growth_df.iterrows()):
-                with cols[i]:
-                    delta_color = "normal" if row['Real Income Change (%)'] >= 0 else "inverse"
-                    st.metric(
-                        label=row['Region'],
-                        value=f"{row['Real Income Change (%)']:.1f}%",
-                        delta="Real purchasing power change"
-                    )
+        else:
+            # Show horizontal bar chart for single period comparison
+            # Using consistent category colors
+            filtered_period_df = filtered_period_df.sort_values('AnnualChange', ascending=False)
+            period_chart = alt.Chart(filtered_period_df).mark_bar().encode(
+                x=alt.X('AnnualChange:Q', title='Avg Annual Price Change (%)'),
+                y=alt.Y('Category:N', 
+                        title='',
+                        sort='-x'),
+                color=alt.Color('Category:N',
+                               scale=CATEGORY_COLOR_SCALE,
+                               legend=None),
+                tooltip=[
+                    alt.Tooltip('Category:N', title='Category'),
+                    alt.Tooltip('AnnualChange:Q', title='Avg Annual Change (%)', format='.1f'),
+                    alt.Tooltip('TotalChange:Q', title='Total Change (%)', format='.1f')
+                ]
+            ).properties(
+                width=700,
+                height=400,
+                title=f'Price Changes During {selected_period}'
+            )
+        
+        st.altair_chart(period_chart, use_container_width=True)
 
 st.divider()
 
 # =============================================================================
-# SECTION 4: ESSENTIAL VS NON-ESSENTIAL GOODS
+# SECTION 4: DEMOGRAPHIC BURDEN ANALYSIS
 # =============================================================================
-# Answers Q4: Are price increases concentrated in essential goods?
-# Encoding: Violin plot for distribution comparison
-st.header("4. Are Price Increases Concentrated in Essential Goods?")
+# Answers Q4: Which demographic groups face the greatest cost-of-living burden?
+# Analysis based on spending patterns and price changes
+st.header("4. Cost-of-Living Burden by Demographic Group")
 
-# Calculate price change for each category and classify as essential/non-essential
-essential_vs_non = []
+# Define demographic groups with their typical spending weights
+# Based on CSO Household Budget Survey patterns
+DEMOGRAPHIC_PROFILES = {
+    'Low Income Household': {
+        'Food & Beverages': 0.20,
+        'Housing & Utilities': 0.35,
+        'Transport': 0.10,
+        'Health': 0.05,
+        'Education': 0.03,
+        'Clothing & Footwear': 0.05,
+        'Communications': 0.04,
+        'Recreation & Culture': 0.05,
+        'Restaurants & Hotels': 0.03,
+        'Alcohol & Tobacco': 0.04,
+        'Furnishings': 0.03,
+        'Miscellaneous': 0.03
+    },
+    'Middle Income Household': {
+        'Food & Beverages': 0.15,
+        'Housing & Utilities': 0.25,
+        'Transport': 0.15,
+        'Health': 0.05,
+        'Education': 0.05,
+        'Clothing & Footwear': 0.06,
+        'Communications': 0.03,
+        'Recreation & Culture': 0.10,
+        'Restaurants & Hotels': 0.08,
+        'Alcohol & Tobacco': 0.03,
+        'Furnishings': 0.03,
+        'Miscellaneous': 0.02
+    },
+    'High Income Household': {
+        'Food & Beverages': 0.10,
+        'Housing & Utilities': 0.15,
+        'Transport': 0.12,
+        'Health': 0.06,
+        'Education': 0.08,
+        'Clothing & Footwear': 0.08,
+        'Communications': 0.02,
+        'Recreation & Culture': 0.15,
+        'Restaurants & Hotels': 0.12,
+        'Alcohol & Tobacco': 0.02,
+        'Furnishings': 0.05,
+        'Miscellaneous': 0.05
+    },
+    'Renters': {
+        'Food & Beverages': 0.15,
+        'Housing & Utilities': 0.40,
+        'Transport': 0.10,
+        'Health': 0.04,
+        'Education': 0.04,
+        'Clothing & Footwear': 0.05,
+        'Communications': 0.03,
+        'Recreation & Culture': 0.07,
+        'Restaurants & Hotels': 0.05,
+        'Alcohol & Tobacco': 0.03,
+        'Furnishings': 0.02,
+        'Miscellaneous': 0.02
+    },
+    'Homeowners': {
+        'Food & Beverages': 0.14,
+        'Housing & Utilities': 0.18,
+        'Transport': 0.15,
+        'Health': 0.06,
+        'Education': 0.06,
+        'Clothing & Footwear': 0.06,
+        'Communications': 0.03,
+        'Recreation & Culture': 0.12,
+        'Restaurants & Hotels': 0.10,
+        'Alcohol & Tobacco': 0.03,
+        'Furnishings': 0.04,
+        'Miscellaneous': 0.03
+    },
+    'Family with Children': {
+        'Food & Beverages': 0.18,
+        'Housing & Utilities': 0.22,
+        'Transport': 0.14,
+        'Health': 0.05,
+        'Education': 0.12,
+        'Clothing & Footwear': 0.08,
+        'Communications': 0.03,
+        'Recreation & Culture': 0.08,
+        'Restaurants & Hotels': 0.04,
+        'Alcohol & Tobacco': 0.01,
+        'Furnishings': 0.03,
+        'Miscellaneous': 0.02
+    }
+}
+
+st.markdown("""
+Different demographic groups experience cost-of-living changes differently based on their spending patterns.
+This analysis calculates a **weighted cost-of-living index** for each group based on typical spending allocations.
+""")
+
+# Calculate price changes for each category
+category_changes = {}
 for cat in MAIN_CATEGORIES:
     if cat == "All-items HICP (COICOP 00)":
-        continue  # Skip the "All Items" aggregate
+        continue
     cat_data = hicp_index[hicp_index['Category'] == cat]
     if not cat_data.empty:
         start_data = cat_data[cat_data['Year'] == year_range[0]]['Value'].values
         end_data = cat_data[cat_data['Year'] == year_range[1]]['Value'].values
         if len(start_data) > 0 and len(end_data) > 0 and start_data[0] > 0:
             change = ((end_data[0] - start_data[0]) / start_data[0]) * 100
-            essential_vs_non.append({
-                'Category': CATEGORY_SHORT_NAMES[cat],
-                'Type': 'Essential' if cat in ESSENTIAL_CATEGORIES else 'Non-Essential',
-                'Change': change
-            })
+            category_changes[CATEGORY_SHORT_NAMES[cat]] = change
 
-if essential_vs_non:
-    essential_df = pd.DataFrame(essential_vs_non)
+# Calculate weighted cost-of-living burden for each demographic group
+if category_changes:
+    burden_data = []
+    for group_name, weights in DEMOGRAPHIC_PROFILES.items():
+        weighted_change = 0
+        for category, weight in weights.items():
+            if category in category_changes:
+                weighted_change += weight * category_changes[category]
+        burden_data.append({
+            'Demographic Group': group_name,
+            'Weighted Cost Increase (%)': weighted_change
+        })
+    
+    burden_df = pd.DataFrame(burden_data)
+    burden_df = burden_df.sort_values('Weighted Cost Increase (%)', ascending=False)
     
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        # Violin plot showing distribution of price changes for each type
-        # Uses density transform to create the violin shape
-        violin = alt.Chart(essential_df).transform_density(
-            'Change',
-            as_=['Change', 'density'],
-            extent=[-10, 50],  # Range of price changes
-            groupby=['Type']
-        ).mark_area(orient='horizontal').encode(
-            y=alt.Y('Change:Q', title='Price Change (%)'),
-            x=alt.X('density:Q', 
-                    stack='center',  # Center the violin
-                    impute=None,
-                    title=None,
-                    axis=alt.Axis(labels=False, values=[0], grid=False, ticks=True)),
-            color=alt.Color('Type:N', 
-                           scale=alt.Scale(range=['#e45756', '#4c78a8']),
-                           legend=alt.Legend(title='Category Type')),
-            column=alt.Column('Type:N', 
-                             header=alt.Header(titleOrient='bottom', labelOrient='bottom', labelPadding=0),
-                             title='')
-        ).properties(
-            width=150,
-            height=350,
-            title='Distribution of Price Changes: Essential vs Non-Essential'
-        )
-        
-        # Overlay individual points on the violin
-        points = alt.Chart(essential_df).mark_circle(size=100, opacity=0.8).encode(
-            y=alt.Y('Change:Q'),
-            x=alt.value(75),  # Center points in the violin
-            color=alt.Color('Type:N', scale=alt.Scale(range=['#e45756', '#4c78a8'])),
-            tooltip=[
-                alt.Tooltip('Category:N', title='Category'),
-                alt.Tooltip('Change:Q', title='Change (%)', format='.1f')
-            ],
-            column=alt.Column('Type:N', header=alt.Header(labelFontSize=0, title=''))
-        ).properties(
-            width=150,
-            height=350
-        )
-        
-        st.altair_chart(violin, use_container_width=False)
-        
-        # Show individual data points separately for clarity
-        st.markdown("**Individual Category Values:**")
-        strip_plot = alt.Chart(essential_df).mark_circle(size=120).encode(
-            x=alt.X('Type:N', title=''),
-            y=alt.Y('Change:Q', title='Price Change (%)'),
-            color=alt.Color('Type:N', 
-                           scale=alt.Scale(range=['#e45756', '#4c78a8']),
+        # Bar chart showing burden by demographic group
+        burden_chart = alt.Chart(burden_df).mark_bar().encode(
+            x=alt.X('Weighted Cost Increase (%):Q', 
+                    title=f'Weighted Cost-of-Living Increase (%) ({year_range[0]}-{year_range[1]})'),
+            y=alt.Y('Demographic Group:N', 
+                    sort='-x',
+                    title=''),
+            color=alt.Color('Weighted Cost Increase (%):Q',
+                           scale=alt.Scale(scheme='reds'),
                            legend=None),
             tooltip=[
-                alt.Tooltip('Category:N', title='Category'),
-                alt.Tooltip('Change:Q', title='Change (%)', format='.1f')
+                alt.Tooltip('Demographic Group:N', title='Group'),
+                alt.Tooltip('Weighted Cost Increase (%):Q', title='Burden (%)', format='.1f')
             ]
         ).properties(
-            width=300,
-            height=250
+            width=500,
+            height=350,
+            title='Cost-of-Living Burden by Demographic Group'
         )
-        st.altair_chart(strip_plot, use_container_width=True)
+        
+        st.altair_chart(burden_chart, use_container_width=True)
     
     with col2:
-        # Summary statistics for each type
-        summary = essential_df.groupby('Type')['Change'].agg(['mean', 'median', 'std']).reset_index()
-        summary.columns = ['Type', 'Mean', 'Median', 'Std Dev']
+        st.subheader("Key Findings")
+        most_affected = burden_df.iloc[0]
+        least_affected = burden_df.iloc[-1]
         
-        st.subheader("Summary Statistics")
-        for _, row in summary.iterrows():
-            st.markdown(f"**{row['Type']}**")
-            st.write(f"- Mean: {row['Mean']:.1f}%")
-            st.write(f"- Median: {row['Median']:.1f}%")
-            st.write(f"- Std Dev: {row['Std Dev']:.1f}%")
+        st.metric(
+            label="Most Affected",
+            value=most_affected['Demographic Group'],
+            delta=f"+{most_affected['Weighted Cost Increase (%)']:.1f}%"
+        )
+        st.metric(
+            label="Least Affected",
+            value=least_affected['Demographic Group'],
+            delta=f"+{least_affected['Weighted Cost Increase (%)']:.1f}%"
+        )
+        
+        gap = most_affected['Weighted Cost Increase (%)'] - least_affected['Weighted Cost Increase (%)']
+        st.markdown(f"**Burden Gap:** {gap:.1f} percentage points")
     
-    # Detailed scatter plot showing all categories
-    st.subheader("Detailed Category Comparison")
+    # Show spending breakdown for selected group
+    st.subheader("Spending Profile Comparison")
     
-    scatter = alt.Chart(essential_df).mark_circle(size=150).encode(
-        x=alt.X('Category:N', title='', axis=alt.Axis(labelAngle=-45)),
-        y=alt.Y('Change:Q', title='Price Change (%)'),
-        color=alt.Color('Type:N', 
-                       title='Category Type',
-                       scale=alt.Scale(range=['#e45756', '#4c78a8'])),
+    # Create data for spending profile visualization
+    profile_data = []
+    for group_name, weights in DEMOGRAPHIC_PROFILES.items():
+        for category, weight in weights.items():
+            profile_data.append({
+                'Group': group_name,
+                'Category': category,
+                'Weight': weight * 100,
+                'Price Change': category_changes.get(category, 0)
+            })
+    
+    profile_df = pd.DataFrame(profile_data)
+    
+    # Filter to only selected categories from sidebar
+    if selected_categories:
+        profile_df = profile_df[profile_df['Category'].isin(selected_categories)]
+    
+    # Stacked bar showing spending allocation by group
+    # Using consistent category colors
+    profile_chart = alt.Chart(profile_df).mark_bar().encode(
+        x=alt.X('Weight:Q', title='Share of Spending (%)', stack='normalize'),
+        y=alt.Y('Group:N', title=''),
+        color=alt.Color('Category:N', 
+                       title='Category',
+                       scale=CATEGORY_COLOR_SCALE,
+                       legend=alt.Legend(orient='bottom', columns=4)),
         tooltip=[
+            alt.Tooltip('Group:N', title='Group'),
             alt.Tooltip('Category:N', title='Category'),
-            alt.Tooltip('Type:N', title='Type'),
-            alt.Tooltip('Change:Q', title='Change (%)', format='.1f')
+            alt.Tooltip('Weight:Q', title='Spending Share (%)', format='.1f'),
+            alt.Tooltip('Price Change:Q', title='Price Change (%)', format='.1f')
         ]
     ).properties(
         width=700,
-        height=350,
-        title='Price Change by Category (Essential vs Non-Essential)'
+        height=300,
+        title='Spending Allocation by Demographic Group'
     )
     
-    # Add horizontal reference line at y=0 (no change)
-    rule = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(strokeDash=[5, 5], color='gray').encode(y='y:Q')
-    
-    st.altair_chart(scatter + rule, use_container_width=True)
+    st.altair_chart(profile_chart, use_container_width=True)
 
 st.divider()
 
 # =============================================================================
-# SECTION 5: HOUSEHOLD SPENDING PATTERNS
+# SECTION 5: HOUSEHOLD SPENDING PATTERNS (INTERACTIVE)
 # =============================================================================
 # Shows how household spending allocation has shifted over time
-# Encoding: Stacked area chart (part-to-whole over time)
+# Now connected to sidebar filters for year range and categories
 st.header("5. Household Spending Patterns Over Time")
 
 # Main consumption categories from personal income data
@@ -693,7 +749,23 @@ main_consumption_items = [
     "CP12 - Miscellaneous goods and services"
 ]
 
-# Filter consumption data for main categories
+# Mapping from consumption item names to short category names (to match sidebar filter)
+CONSUMPTION_TO_SHORT = {
+    "CP01 - Food and non-alcoholic beverages": "Food & Beverages",
+    "CP02 - Alcoholic beverages, tobacco and narcotics": "Alcohol & Tobacco",
+    "CP03 - Clothing and footwear": "Clothing & Footwear",
+    "CP04 - Housing, water, electricity, gas and other fuels": "Housing & Utilities",
+    "CP05 - Furnishings, household equipment and routine household maintenance": "Furnishings",
+    "CP06 - Health": "Health",
+    "CP07 - Transport": "Transport",
+    "CP08 - Communications": "Communications",
+    "CP09 - Recreation and culture": "Recreation & Culture",
+    "CP10 - Education": "Education",
+    "CP11 - Restaurants and hotels": "Restaurants & Hotels",
+    "CP12 - Miscellaneous goods and services": "Miscellaneous"
+}
+
+# Filter consumption data for main categories and year range from sidebar
 consumption_filtered = consumption[
     (consumption['Item'].isin(main_consumption_items)) &
     (consumption['Year'] >= year_range[0]) &
@@ -701,7 +773,16 @@ consumption_filtered = consumption[
 ].copy()
 
 # Extract short item names (remove "CP01 - " prefix)
-consumption_filtered['ShortItem'] = consumption_filtered['Item'].str.extract(r'CP\d+ - (.+)')[0]
+consumption_filtered['ShortItem'] = consumption_filtered['Item'].map(CONSUMPTION_TO_SHORT)
+
+# Filter to selected categories from sidebar if any are selected
+if selected_categories:
+    consumption_filtered = consumption_filtered[consumption_filtered['ShortItem'].isin(selected_categories)]
+
+st.markdown(f"""
+**Filters Applied:** Year range {year_range[0]}-{year_range[1]} | 
+Categories: {', '.join(selected_categories) if selected_categories else 'All categories'}
+""")
 
 if not consumption_filtered.empty:
     # Calculate yearly totals for percentage calculation
@@ -712,14 +793,19 @@ if not consumption_filtered.empty:
     consumption_merged = consumption_filtered.merge(yearly_total, on='Year')
     consumption_merged['Percentage'] = (consumption_merged['Value'] / consumption_merged['Total']) * 100
     
+    # Create selection for interactivity
+    selection = alt.selection_point(fields=['ShortItem'], bind='legend')
+    
     # Stacked area chart showing spending composition over time
-    # stack='normalize' ensures all years sum to 100%
+    # Using consistent category colors
     area_chart = alt.Chart(consumption_merged).mark_area().encode(
         x=alt.X('Year:O', title='Year'),
-        y=alt.Y('Percentage:Q', title='Share of Total Spending (%)', stack='normalize'),
+        y=alt.Y('Value:Q', title='Spending (€ Million)', stack='zero'),
         color=alt.Color('ShortItem:N', 
                        title='Category',
+                       scale=CATEGORY_COLOR_SCALE,
                        legend=alt.Legend(orient='right')),
+        opacity=alt.condition(selection, alt.value(1), alt.value(0.2)),
         tooltip=[
             alt.Tooltip('ShortItem:N', title='Category'),
             alt.Tooltip('Year:O', title='Year'),
@@ -729,10 +815,13 @@ if not consumption_filtered.empty:
     ).properties(
         width=700,
         height=400,
-        title='Household Spending Distribution by Category'
-    ).interactive()
+        title=f'Household Spending by Category ({year_range[0]}-{year_range[1]})'
+    ).add_params(selection).interactive()
     
     st.altair_chart(area_chart, use_container_width=True)
+    st.caption("Click on legend items to highlight specific categories")
+else:
+    st.warning("No data available for the selected filters. Please adjust the year range or categories.")
 
 st.divider()
 
@@ -747,31 +836,28 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     # Summary of highest price increases from Section 1
-    st.markdown("### 📈 Highest Price Increases")
-    if not change_df.empty:
+    st.markdown("### Highest Price Increases")
+    if 'change_df' in dir() and not change_df.empty:
         top_increases = change_df.head(3)
         for _, row in top_increases.iterrows():
             st.markdown(f"- **{row['Category']}**: +{row['Change']:.1f}%")
 
 with col2:
-    # Summary of essential vs non-essential comparison from Section 4
-    st.markdown("### 🏠 Essential Goods Impact")
-    if essential_vs_non:
-        essential_avg = essential_df[essential_df['Type'] == 'Essential']['Change'].mean()
-        non_essential_avg = essential_df[essential_df['Type'] == 'Non-Essential']['Change'].mean()
-        st.markdown(f"- Essential goods avg: **+{essential_avg:.1f}%**")
-        st.markdown(f"- Non-essential avg: **+{non_essential_avg:.1f}%**")
-        if essential_avg > non_essential_avg:
-            st.markdown("- ⚠️ Essential goods rising faster")
+    # Summary of economic periods from Section 3
+    st.markdown("### Economic Periods")
+    if 'period_df' in dir() and not period_df.empty:
+        period_avg = period_df.groupby('Period')['AnnualChange'].mean()
+        worst_period = period_avg.idxmax()
+        st.markdown(f"- Worst period: **{worst_period}**")
+        st.markdown(f"- Avg inflation: **+{period_avg[worst_period]:.1f}%/year**")
 
 with col3:
-    # Summary of regional disparities from Section 3
-    st.markdown("### 🗺️ Regional Disparities")
-    if 'growth_df' in dir() and growth_df is not None:
-        lowest_region = growth_df.loc[growth_df['Real Income Change (%)'].idxmin()]
-        highest_region = growth_df.loc[growth_df['Real Income Change (%)'].idxmax()]
-        st.markdown(f"- Most affected: **{lowest_region['Region']}**")
-        st.markdown(f"- Least affected: **{highest_region['Region']}**")
+    # Summary of demographic burden from Section 4
+    st.markdown("### Demographic Impact")
+    if 'burden_df' in dir() and not burden_df.empty:
+        most_affected = burden_df.iloc[0]
+        st.markdown(f"- Most affected: **{most_affected['Demographic Group']}**")
+        st.markdown(f"- Burden: **+{most_affected['Weighted Cost Increase (%)']:.1f}%**")
 
 st.divider()
 
@@ -783,6 +869,7 @@ st.markdown("""
 **Data Sources:** Central Statistics Office (CSO) Ireland - Harmonised Index of Consumer Prices (HICP), 
 Household Income Statistics, Personal Consumption Expenditure
 
-**Methodology:** Price indices are based on 2015=100. Essential categories include Food, Housing, Health, 
-Transport, and Education. Regional analysis uses NUTS 2 regions.
+**Methodology:** Price indices are based on 2015=100. Economic periods defined as Pre-COVID (2015-2019), 
+COVID (2020-2021), Inflation Surge (2022-2023), and Stabilization (2024). Demographic burden calculated 
+using weighted spending profiles based on CSO Household Budget Survey patterns.
 """)
