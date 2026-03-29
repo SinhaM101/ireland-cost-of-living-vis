@@ -1,0 +1,644 @@
+/* =============================================================================
+   Ireland Cost of Living Dashboard — Dark Theme Styles
+   ============================================================================= */
+
+/* Global Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: #0d1117;
+    color: #e6edf3;
+    overflow-x: hidden;
+}
+
+/* Dashboard Container */
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: #0d1117;
+}
+
+/* =========================================================================
+   SIDEBAR
+   ========================================================================= */
+
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 280px;
+    height: 100vh;
+    background-color: #1f2230;
+    padding: 24px 20px;
+    overflow-y: auto;
+    border-right: 1px solid #2d333b;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.sidebar-title {
+    color: #e6edf3;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #30363d;
+    letter-spacing: 0.3px;
+}
+
+.filter-section {
+    margin-bottom: 28px;
+}
+
+.filter-label {
+    display: block;
+    color: #8b949e;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 14px;
+}
+
+.category-filter-label {
+    margin-top: 8px;
+    margin-bottom: 16px;
+}
+
+/* =========================================================================
+   YEAR RANGE SLIDER
+   ========================================================================= */
+
+.year-labels-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.year-label {
+    color: #e6edf3;
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+/* RC-slider overrides for Dash RangeSlider */
+.year-slider .rc-slider {
+    margin: 0 4px;
+}
+
+.year-slider .rc-slider-rail {
+    background-color: #30363d;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.year-slider .rc-slider-track,
+.year-slider .rc-slider-tracks {
+    background-color: #ff4d4d;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.year-slider .rc-slider-handle {
+    width: 18px;
+    height: 18px;
+    background-color: #ff4d4d;
+    border: 2px solid #ff4d4d;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(255, 77, 77, 0.55);
+    opacity: 1;
+    margin-top: -7px;
+    cursor: grab;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.year-slider .rc-slider-handle:hover {
+    border-color: #ff6b6b;
+    box-shadow: 0 0 0 4px rgba(255, 77, 77, 0.25);
+    cursor: grab;
+}
+
+.year-slider .rc-slider-handle:active,
+.year-slider .rc-slider-handle-dragging {
+    border-color: #ff6b6b !important;
+    box-shadow: 0 0 0 6px rgba(255, 77, 77, 0.35) !important;
+    cursor: grabbing;
+}
+
+/* Tooltip styling */
+.year-slider .rc-slider-tooltip-inner {
+    background-color: #ff4d4d;
+    border-color: #ff4d4d;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.year-slider .rc-slider-tooltip-arrow {
+    border-top-color: #ff4d4d !important;
+}
+
+/* Dash 4.x slider tooltip override */
+.year-slider .dash-slider-tooltip {
+    background-color: #ff4d4d !important;
+    color: #fff !important;
+    border-radius: 4px !important;
+    font-size: 0.75rem !important;
+}
+
+/* =========================================================================
+   CUSTOM CATEGORY CHECKLIST
+   ========================================================================= */
+
+.category-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Each checklist row = label wrapping [input][color-square][name] */
+.category-checklist label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 10px;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+    margin-bottom: 0;
+    min-height: 42px;
+}
+
+.category-checklist label:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Hide the default browser checkbox — use appearance:none to style it custom */
+.category-checklist input[type="checkbox"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 19px;
+    height: 19px;
+    min-width: 19px;
+    border: 2px solid #444c56;
+    border-radius: 4px;
+    background-color: transparent;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+}
+
+.category-checklist input[type="checkbox"]:checked {
+    background-color: #ff4d4d;
+    border-color: #ff4d4d;
+}
+
+/* White checkmark via SVG data URI */
+.category-checklist input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 4px;
+    width: 5px;
+    height: 9px;
+    border: 2px solid #ffffff;
+    border-top: none;
+    border-left: none;
+    transform: rotate(45deg);
+}
+
+/* Category option label = color square + name text */
+.cat-option-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.cat-color-square {
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    min-width: 15px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.cat-name {
+    color: #cdd9e5;
+    font-size: 0.92rem;
+    font-weight: 400;
+    line-height: 1.3;
+}
+
+/* =========================================================================
+   MAIN CONTENT
+   ========================================================================= */
+
+.main-content {
+    margin-left: 280px;
+    flex: 1;
+    padding: 2rem 3rem;
+    background-color: #0d1117;
+    max-width: calc(100vw - 280px);
+    overflow-x: hidden;
+}
+
+.header {
+    margin-bottom: 2.5rem;
+}
+
+.main-title {
+    color: #e6edf3;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+}
+
+.subtitle {
+    color: #8b949e;
+    font-size: 1.1rem;
+    font-weight: 400;
+}
+
+/* =========================================================================
+   SECTIONS
+   ========================================================================= */
+
+.section {
+    margin-bottom: 3.5rem;
+}
+
+.section h2 {
+    color: #e6edf3;
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin-bottom: 1.25rem;
+}
+
+.section h3 {
+    color: #e6edf3;
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+}
+
+.section-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+    width: 100%;
+    max-width: 100%;
+}
+
+/* =========================================================================
+   CHART CONTAINERS & CARDS
+   ========================================================================= */
+
+.chart-container {
+    background-color: #161b22;
+    border-radius: 8px;
+    padding: 1.25rem;
+    border: none;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.findings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    height: 100%;
+    justify-content: space-between;
+}
+
+.findings-title {
+    color: #e6edf3;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.findings-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1;
+    justify-content: space-evenly;
+}
+
+.finding-card {
+    background-color: #1c2128;
+    border-radius: 8px;
+    padding: 1.5rem 1.25rem;
+    border-left: 3px solid #ff4d4d;
+    transition: transform 0.2s, box-shadow 0.2s;
+    min-height: 120px;
+}
+
+.finding-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.card-label {
+    color: #8b949e;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.card-subtitle {
+    color: #e6edf3;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+}
+
+.card-value {
+    color: #e6edf3;
+    font-size: 1.6rem;
+    font-weight: 700;
+}
+
+.card-value.positive {
+    color: #ff4d4d;
+}
+
+.card-detail {
+    color: #8b949e;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    margin-top: 0.5rem;
+    font-weight: 400;
+}
+
+/* =========================================================================
+   ECONOMIC PERIODS
+   ========================================================================= */
+
+.period-description {
+    background-color: #161b22;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    border: 1px solid #30363d;
+}
+
+.period-text {
+    color: #8b949e;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+    line-height: 1.6;
+}
+
+.dropdown-container {
+    margin-bottom: 1.25rem;
+}
+
+.dropdown-label {
+    display: block;
+    color: #e6edf3;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0.6rem;
+}
+
+.period-dropdown {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Dash Dropdown dark styling */
+.period-dropdown {
+    background-color: #1c2128 !important;
+}
+
+.period-dropdown .Select-control {
+    background-color: #1c2128 !important;
+    border-color: #30363d !important;
+    color: #e6edf3 !important;
+}
+
+.period-dropdown .Select-menu-outer {
+    background-color: #1c2128 !important;
+    border-color: #30363d !important;
+}
+
+.period-dropdown .Select-option {
+    background-color: #1c2128 !important;
+    color: #e6edf3 !important;
+}
+
+.period-dropdown .Select-option:hover,
+.period-dropdown .Select-option.is-focused {
+    background-color: #2d333b !important;
+}
+
+.period-dropdown .Select-value-label,
+.period-dropdown .Select-placeholder {
+    color: #e6edf3 !important;
+}
+
+.period-dropdown .Select-arrow {
+    border-color: #8b949e transparent transparent !important;
+}
+
+/* Dash 4.x dropdown overrides */
+.period-dropdown .dash-dropdown .Select-control {
+    background-color: #1c2128 !important;
+}
+
+/* VirtualizedSelect dark theme */
+.period-dropdown div[class*="menu"] {
+    background-color: #1c2128 !important;
+}
+
+.period-dropdown div[class*="option"] {
+    background-color: #1c2128 !important;
+    color: #e6edf3 !important;
+}
+
+.period-dropdown div[class*="option"]:hover {
+    background-color: #2d333b !important;
+}
+
+/* =========================================================================
+   SUMMARY SECTION
+   ========================================================================= */
+
+.summary-section {
+    background-color: #161b22;
+    border-radius: 8px;
+    padding: 1.75rem;
+    border: 1px solid #30363d;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    margin-top: 1.25rem;
+}
+
+.summary-column h3 {
+    color: #e6edf3;
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid #30363d;
+}
+
+.summary-column ul {
+    list-style: none;
+    padding: 0;
+}
+
+.summary-column li {
+    color: #8b949e;
+    font-size: 0.88rem;
+    margin-bottom: 0.6rem;
+    padding-left: 1.2rem;
+    position: relative;
+    line-height: 1.5;
+}
+
+.summary-column li::before {
+    content: "▸";
+    position: absolute;
+    left: 0;
+    color: #ff4d4d;
+    font-weight: bold;
+}
+
+/* =========================================================================
+   FOOTER
+   ========================================================================= */
+
+.footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #30363d;
+    text-align: center;
+}
+
+.footer-text {
+    color: #8b949e;
+    font-size: 0.85rem;
+    margin-bottom: 0.4rem;
+}
+
+/* =========================================================================
+   PLOTLY CHARTS
+   ========================================================================= */
+
+.js-plotly-plot {
+    border-radius: 6px;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.js-plotly-plot .plotly .main-svg {
+    background: transparent !important;
+}
+
+.js-plotly-plot .bg {
+    fill: transparent !important;
+}
+
+/* =========================================================================
+   SCROLLBAR
+   ========================================================================= */
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #0d1117;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #444c56;
+}
+
+/* =========================================================================
+   MISC DASH OVERRIDES
+   ========================================================================= */
+
+._dash-loading {
+    color: #ff4d4d;
+}
+
+._dash-undo-redo {
+    display: none;
+}
+
+/* =========================================================================
+   RESPONSIVE
+   ========================================================================= */
+
+@media (max-width: 1200px) {
+    .summary-grid {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+}
+
+@media (max-width: 968px) {
+    .section-row {
+        grid-template-columns: 1fr;
+    }
+
+    .main-content {
+        margin-left: 280px;
+        padding: 1.5rem 1.5rem;
+    }
+
+    .main-title {
+        font-size: 1.8rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #30363d;
+    }
+
+    .main-content {
+        margin-left: 0;
+        padding: 1rem;
+    }
+
+    .main-title {
+        font-size: 1.5rem;
+    }
+}
