@@ -31,6 +31,85 @@ st.set_page_config(
 alt.data_transformers.disable_max_rows()
 
 # =============================================================================
+# DARK MODE FUNCTIONALITY
+# =============================================================================
+# Initialize dark mode state
+if 'dark_mode' not in st.session_state:
+    st.session_state.dark_mode = False
+
+def apply_dark_mode():
+    """Apply dark mode CSS styling"""
+    if st.session_state.dark_mode:
+        st.markdown("""
+        <style>
+        /* Dark mode styles */
+        .stApp {
+            background-color: #0e1117;
+            color: #fafafa;
+        }
+        .stMarkdown, .stText {
+            color: #fafafa;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #fafafa !important;
+        }
+        .stMetric {
+            background-color: #262730;
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+        .stMetric label {
+            color: #fafafa !important;
+        }
+        .stMetric [data-testid="stMetricValue"] {
+            color: #fafafa !important;
+        }
+        div[data-testid="stHorizontalBlock"] {
+            background-color: transparent;
+        }
+        .stDivider {
+            border-color: #262730;
+        }
+        /* Sidebar dark mode */
+        section[data-testid="stSidebar"] {
+            background-color: #262730;
+        }
+        section[data-testid="stSidebar"] .stMarkdown {
+            color: #fafafa;
+        }
+        section[data-testid="stSidebar"] label {
+            color: #fafafa !important;
+        }
+        /* Input elements */
+        .stSlider label {
+            color: #fafafa !important;
+        }
+        .stCheckbox label {
+            color: #fafafa !important;
+        }
+        .stSelectbox label {
+            color: #fafafa !important;
+        }
+        /* Charts background */
+        .vega-embed {
+            background-color: transparent !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <style>
+        /* Light mode styles (default) */
+        .stApp {
+            background-color: #ffffff;
+            color: #262730;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+apply_dark_mode()
+
+# =============================================================================
 # DATA LOADING FUNCTIONS
 # =============================================================================
 # Using @st.cache_data decorator to cache data and avoid reloading on each interaction
@@ -197,6 +276,18 @@ examining which price categories have increased the most, how changes evolved ac
 with st.sidebar:
     st.header("Filters & Controls")
     
+    # Dark mode toggle
+    col1, col2 = st.columns([0.7, 0.3])
+    with col1:
+        st.markdown("**Dark Mode**")
+    with col2:
+        dark_mode_toggle = st.toggle("", value=st.session_state.dark_mode, key="dark_mode_toggle")
+        if dark_mode_toggle != st.session_state.dark_mode:
+            st.session_state.dark_mode = dark_mode_toggle
+            st.rerun()
+    
+    st.divider()
+    
     # Year range slider: filters data across all charts
     year_range = st.slider(
         "Select Year Range",
@@ -288,10 +379,12 @@ if not hicp_index.empty:
         bar_chart = alt.Chart(filtered_change_df).mark_bar().encode(
             x=alt.X('Change:Q', 
                     title=f'Price Change (%) from {year_range[0]} to {year_range[1]}',
-                    axis=alt.Axis(format='.1f')),
+                    axis=alt.Axis(format='.1f', labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                                 titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
             y=alt.Y('Category:N', 
                     sort='-x',  # Sort by x-value (highest change at top)
-                    title=''),
+                    title='',
+                    axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730')),
             color=alt.Color('Category:N',
                            scale=CATEGORY_COLOR_SCALE,
                            legend=None),
@@ -305,6 +398,10 @@ if not hicp_index.empty:
             width=500,
             height=max(200, len(filtered_change_df) * 35),
             title=f'Price Index Change by Category ({year_range[0]}-{year_range[1]})'
+        ).configure_view(
+            strokeWidth=0
+        ).configure_title(
+            color='#fafafa' if st.session_state.dark_mode else '#262730'
         )
         
         st.altair_chart(bar_chart, use_container_width=True)
@@ -349,12 +446,18 @@ if not monthly_hicp.empty and selected_full_categories:
     
     # Base encoding shared by lines and points - using consistent color scheme
     base = alt.Chart(filtered_monthly).encode(
-        x=alt.X('Date:T', title='Date', axis=alt.Axis(format='%Y')),
-        y=alt.Y('Value:Q', title='Price Index (Base 2015=100)'),
+        x=alt.X('Date:T', title='Date', axis=alt.Axis(format='%Y',
+                labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
+        y=alt.Y('Value:Q', title='Price Index (Base 2015=100)',
+                axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                             titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
         color=alt.Color('ShortCategory:N', 
                        title='Category',
                        scale=CATEGORY_COLOR_SCALE,
-                       legend=alt.Legend(orient='bottom', columns=3))
+                       legend=alt.Legend(orient='bottom', columns=3,
+                                        labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                                        titleColor='#fafafa' if st.session_state.dark_mode else '#262730'))
     )
     
     # Line marks with opacity tied to hover state
@@ -372,6 +475,10 @@ if not monthly_hicp.empty and selected_full_categories:
         width=800,
         height=600,
         title='Monthly Price Index Trends by Category'
+    ).configure_view(
+        strokeWidth=0
+    ).configure_title(
+        color='#fafafa' if st.session_state.dark_mode else '#262730'
     ).interactive()  # Enable pan/zoom
     
     st.altair_chart(line_chart, use_container_width=True)
@@ -462,12 +569,17 @@ if period_data:
             # Show horizontal grouped bar chart - categories as rows, periods as grouped bars
             # Using consistent category colors
             period_chart = alt.Chart(filtered_period_df).mark_bar().encode(
-                x=alt.X('AnnualChange:Q', title='Avg Annual Price Change (%)'),
-                y=alt.Y('Category:N', title=''),
+                x=alt.X('AnnualChange:Q', title='Avg Annual Price Change (%)',
+                       axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                                    titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
+                y=alt.Y('Category:N', title='',
+                       axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730')),
                 color=alt.Color('Category:N', 
                                title='Category',
                                scale=CATEGORY_COLOR_SCALE,
-                               legend=alt.Legend(orient='bottom', columns=4)),
+                               legend=alt.Legend(orient='bottom', columns=4,
+                                                labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                                                titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
                 yOffset=alt.YOffset('Period:N', sort=['Pre-COVID (2015-2019)', 'COVID (2020-2021)', 'Inflation Surge (2022-2023)']),
                 tooltip=[
                     alt.Tooltip('Category:N', title='Category'),
@@ -479,16 +591,23 @@ if period_data:
                 width=700,
                 height=450,
                 title='Average Annual Price Change by Category Across Economic Periods'
+            ).configure_view(
+                strokeWidth=0
+            ).configure_title(
+                color='#fafafa' if st.session_state.dark_mode else '#262730'
             )
         else:
             # Show horizontal bar chart for single period comparison
             # Using consistent category colors
             filtered_period_df = filtered_period_df.sort_values('AnnualChange', ascending=False)
             period_chart = alt.Chart(filtered_period_df).mark_bar().encode(
-                x=alt.X('AnnualChange:Q', title='Avg Annual Price Change (%)'),
+                x=alt.X('AnnualChange:Q', title='Avg Annual Price Change (%)',
+                       axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                                    titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
                 y=alt.Y('Category:N', 
                         title='',
-                        sort='-x'),
+                        sort='-x',
+                        axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730')),
                 color=alt.Color('Category:N',
                                scale=CATEGORY_COLOR_SCALE,
                                legend=None),
@@ -501,6 +620,10 @@ if period_data:
                 width=700,
                 height=400,
                 title=f'Price Changes During {selected_period}'
+            ).configure_view(
+                strokeWidth=0
+            ).configure_title(
+                color='#fafafa' if st.session_state.dark_mode else '#262730'
             )
         
         st.altair_chart(period_chart, use_container_width=True)
@@ -643,10 +766,13 @@ if category_changes:
         # Bar chart showing burden by demographic group
         burden_chart = alt.Chart(burden_df).mark_bar().encode(
             x=alt.X('Weighted Cost Increase (%):Q', 
-                    title=f'Weighted Cost-of-Living Increase (%) ({year_range[0]}-{year_range[1]})'),
+                    title=f'Weighted Cost-of-Living Increase (%) ({year_range[0]}-{year_range[1]})',
+                    axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                                 titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
             y=alt.Y('Demographic Group:N', 
                     sort='-x',
-                    title=''),
+                    title='',
+                    axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730')),
             color=alt.Color('Weighted Cost Increase (%):Q',
                            scale=alt.Scale(scheme='reds'),
                            legend=None),
@@ -658,6 +784,10 @@ if category_changes:
             width=500,
             height=350,
             title='Cost-of-Living Burden by Demographic Group'
+        ).configure_view(
+            strokeWidth=0
+        ).configure_title(
+            color='#fafafa' if st.session_state.dark_mode else '#262730'
         )
         
         st.altair_chart(burden_chart, use_container_width=True)
@@ -704,12 +834,17 @@ if category_changes:
     # Stacked bar showing spending allocation by group
     # Using consistent category colors
     profile_chart = alt.Chart(profile_df).mark_bar().encode(
-        x=alt.X('Weight:Q', title='Share of Spending (%)', stack='normalize'),
-        y=alt.Y('Group:N', title=''),
+        x=alt.X('Weight:Q', title='Share of Spending (%)', stack='normalize',
+               axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                            titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
+        y=alt.Y('Group:N', title='',
+               axis=alt.Axis(labelColor='#fafafa' if st.session_state.dark_mode else '#262730')),
         color=alt.Color('Category:N', 
                        title='Category',
                        scale=CATEGORY_COLOR_SCALE,
-                       legend=alt.Legend(orient='bottom', columns=4)),
+                       legend=alt.Legend(orient='bottom', columns=4,
+                                        labelColor='#fafafa' if st.session_state.dark_mode else '#262730',
+                                        titleColor='#fafafa' if st.session_state.dark_mode else '#262730')),
         tooltip=[
             alt.Tooltip('Group:N', title='Group'),
             alt.Tooltip('Category:N', title='Category'),
@@ -720,6 +855,10 @@ if category_changes:
         width=700,
         height=300,
         title='Spending Allocation by Demographic Group'
+    ).configure_view(
+        strokeWidth=0
+    ).configure_title(
+        color='#fafafa' if st.session_state.dark_mode else '#262730'
     )
     
     st.altair_chart(profile_chart, use_container_width=True)
