@@ -2,7 +2,7 @@
 
 An interactive information visualization exploring how the cost of living in Ireland has changed since 2015, examining price trends across categories, economic periods, and demographic impact.
 
-**Interactive Dashboard:** [https://sinham101-ireland-cost-of-living-vis-app-hkhoa0.streamlit.app/](https://sinham101-ireland-cost-of-living-vis-app-hkhoa0.streamlit.app/)
+**Interactive Dashboard:** [https://costoflivingireland.onrender.com/](https://costoflivingireland.onrender.com/)
 
 **Course:** CS7DS4 Information Visualization  
 **Author:** Monish  
