@@ -314,11 +314,10 @@ with st.sidebar:
     selected_full_categories = [reverse_short_names[c] for c in selected_categories]
 
 # =============================================================================
-# SECTION 1: PRICE CHANGE BY CATEGORY (Bar Chart)
+# SECTION 1: PRICE CHANGE ANALYSIS (Bar Chart)
 # =============================================================================
-# Answers Q1: Which price categories have increased the most?
+# Answers Q1: Which categories have increased the most?
 # Encoding: Horizontal bar chart with position (sorted) and color (essential vs non-essential)
-st.header("1. Which Price Categories Have Increased the Most?")
 
 # Filter HICP data for main categories within selected year range
 hicp_index = annual_cpi[
@@ -363,6 +362,13 @@ if not hicp_index.empty:
     else:
         filtered_change_df = change_df
     
+    # Create header row with title and Key Findings on same line
+    header_col1, header_col2 = st.columns([2, 1])
+    with header_col1:
+        st.header("1. Which Price Categories Have Increased the Most?")
+    with header_col2:
+        st.header("Key Findings")
+    
     # Create two-column layout: chart on left, metrics on right
     col1, col2 = st.columns([2, 1])
     
@@ -404,7 +410,6 @@ if not hicp_index.empty:
     
     with col2:
         # Display top 3 categories as metric cards
-        st.subheader("Key Findings")
         top_3 = change_df.head(3)
         for _, row in top_3.iterrows():
             st.metric(
